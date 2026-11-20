@@ -5,7 +5,6 @@ import {
   buildOwnerMembershipInsertPayload, buildWorkspaceCreatedActivityEventPayload
 } from '../../reference/directus-extension.dist.js';
 
-const router = express.Router();
 const forbiddenFields = new Set([
   'user','user_id','userId','requested_by_user','role','member_role','memberRole','owner',
   'is_owner','isOwner','business_profile','businessProfile','business_profile_id',
