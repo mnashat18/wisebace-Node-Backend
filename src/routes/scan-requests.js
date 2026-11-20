@@ -164,3 +164,5 @@ export function createScanRequestsRouter({db,authenticate}){
  return router;
 }
 export {parseCreate as parseScanRequestCreate};
+
+export {loadRows as loadScanRequestRows, summary as summarizeScanRequests};
