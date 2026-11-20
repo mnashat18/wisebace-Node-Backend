@@ -9,6 +9,7 @@ import { createWorkspaceRouter } from './routes/workspaces.js';
 import { createEmailAvailabilityRouter } from './routes/auth.js';
 import { createOrganizationRouter } from './routes/organization.js';
 import { createScanRequestsRouter } from './routes/scan-requests.js';
+import { createAlertsRouter } from './routes/alerts.js';
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -46,6 +47,7 @@ app.use('/auth',requireDatabase,createEmailAvailabilityRouter({db}));
 app.use('/workspaces',requireDatabase,createWorkspaceRouter({db,env:process.env,authenticate}));
 app.use('/organization',requireDatabase,createOrganizationRouter({db,authenticate}));
 app.use('/scan-requests',requireDatabase,createScanRequestsRouter({db,authenticate}));
+app.use('/alerts',requireDatabase,createAlertsRouter({db,authenticate}));
 app.use((_req,res) => res.status(501).json({
   error:{code:'NOT_IMPLEMENTED',message:'This endpoint has not been migrated yet.'}
 }));
