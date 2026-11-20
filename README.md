@@ -24,7 +24,9 @@ npm run dev
 - `GET /health`: process health
 - `GET /ready`: PostgreSQL readiness (requires `DATABASE_URL`)
 - `POST /auth/email-availability`: rate-limited email availability check
-- `GET /workspaces/context`: list eligible memberships and invitations (requires a valid API bearer token)\n- `POST /workspaces/switch`: switch the authenticated user's active workspace (requires a valid API bearer token and role UUID configuration)\n- `POST /workspaces/create`: create a workspace and owner membership (requires a valid API bearer token and role UUID configuration)
+- `GET /workspaces/context`: list eligible memberships and invitations (requires a valid API bearer token)
+- `POST /workspaces/switch`: switch the authenticated user's active workspace (requires a valid API bearer token and role UUID configuration)
+- `POST /workspaces/create`: create a workspace and owner membership (requires a valid API bearer token and role UUID configuration)
 
 ## Authentication configuration
 
