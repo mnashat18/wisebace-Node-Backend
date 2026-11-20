@@ -252,7 +252,7 @@ export function createWorkspaceRouter({ db, env = process.env, authenticate }) {
       businessProfileId:row.business_profile ? String(row.business_profile) : null,
       companyName:row.company_name ?? 'Workspace invitation',
       departmentId:departmentId ? String(departmentId) : null,
-      departmentName:row.department_name ?? null,expiresAt:row.expires_at ?? null,
+      departmentName:departmentId ? (row.department_name ?? 'Department') : null,expiresAt:row.expires_at ?? null,
       requestedByUser,canAct:Boolean(canAct)
     };
   };
