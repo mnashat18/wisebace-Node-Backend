@@ -16,7 +16,7 @@ app.use(helmet());
 app.use(compression());
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || origins.length === 0 || origins.includes(origin)) return callback(null,true);
+    if (!origin || origins.includes(origin)) return callback(null,true);
     return callback(new Error('Origin is not allowed by CORS'));
   },
   credentials:true
