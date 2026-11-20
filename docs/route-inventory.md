@@ -19,9 +19,9 @@ Source: the compiled Directus endpoint artifact uploaded in this conversation. T
 | GET | `/workforce` | Pending |
 | POST | `/workspaces/invites` | Pending |
 | GET | `/workspaces/context` | Implemented; integration verification pending |
-| GET | `/workspaces/invites/:inviteId` | Pending |
-| POST | `/workspaces/invites/:inviteId/accept` | Pending |
-| POST | `/workspaces/invites/:inviteId/decline` | Pending |
+| GET | `/workspaces/invites/:inviteId` | Implemented; integration verification pending |
+| POST | `/workspaces/invites/:inviteId/accept` | Implemented; integration verification pending |
+| POST | `/workspaces/invites/:inviteId/decline` | Implemented; integration verification pending |
 | POST | `/workspaces/switch` | Implemented; integration verification pending |
 | POST | `/workspaces/create` | Implemented; integration verification pending |
 
@@ -37,6 +37,10 @@ Source: the compiled Directus endpoint artifact uploaded in this conversation. T
 ## Implemented migration slices
 
 `POST /auth/email-availability` has been ported with strict JSON input validation, email normalization, a per-IP 10-requests/minute in-memory rate limit, a no-store response, and a 250ms minimum response time. Unit tests cover its normalization rules.
+
+### In-app invitations
+
+`GET /workspaces/invites/:inviteId`, `POST /workspaces/invites/:inviteId/accept`, and `POST /workspaces/invites/:inviteId/decline` have been ported. They verify the signed-in account email against the invite, restrict access to in-app invitations, enforce expiry/status checks, create membership only after validating the department, update invite claim/decline state, and mark the linked notification read within the transaction. Integration tests against the actual Directus schema are still required.
 
 ### Workspace context and switching
 
