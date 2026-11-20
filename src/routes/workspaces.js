@@ -228,6 +228,249 @@ export function createWorkspaceRouter({ db, env = process.env, authenticate }) {
     }
   });
 
+  const roleName = value => {
+    const role = String(value ?? '').trim().toLowerCase();
+    if (role === 'admin') return 'hr';
+    if (role === 'manger') return 'manager';
+    if (role === 'member' || role === 'viewer') return 'employee';
+    return role || null;
+  };
+  const invitationDetail = (row, canAct) => {
+    const departmentId = row.department_id ?? row.department ?? null;
+    const requestedById = row.requested_by_user_id ?? row.requested_by_user ?? null;
+    const requestedByEmail = row.requested_by_user_email ?? null;
+    const first = String(row.requested_by_user_first_name ?? '').trim();
+    const last = String(row.requested_by_user_last_name ?? '').trim();
+    const displayName = [first,last].filter(Boolean).join(' ') || null;
+    const requestedByUser = requestedById || requestedByEmail || displayName
+      ? {id:requestedById ? String(requestedById) : null,email:requestedByEmail,displayName}
+      : null;
+    return {
+      id:String(row.id),email:row.email ?? 'Unavailable',
+      inviteType:String(row.invite_type ?? '').toLowerCase() || null,
+      status:row.status ?? 'pending',memberRole:roleName(row.member_role) ?? 'employee',
+      businessProfileId:row.business_profile ? String(row.business_profile) : null,
+      companyName:row.company_name ?? 'Workspace invitation',
+      departmentId:departmentId ? String(departmentId) : null,
+      departmentName:row.department_name ?? null,expiresAt:row.expires_at ?? null,
+      requestedByUser,canAct:Boolean(canAct)
+    };
+  };
+  const findInvitation = (trx, inviteId) => trx('request_invites as invite')
+    .leftJoin('business_profiles as profile','profile.id','invite.business_profile')
+    .leftJoin('departments as department','department.id','invite.department')
+    .leftJoin('directus_users as requested_by_user','requested_by_user.id','invite.requested_by_user')
+    .select('invite.id','invite.email','invite.member_role','invite.status','invite.business_profile',
+      'invite.department','invite.invite_type','invite.token','invite.sent_at','invite.claimed_at',
+      'invite.expires_at','invite.accepted_user','invite.requested_by_user','profile.company_name',
+      'department.name as department_name','requested_by_user.id as requested_by_user_id',
+      'requested_by_user.email as requested_by_user_email',
+      'requested_by_user.first_name as requested_by_user_first_name',
+      'requested_by_user.last_name as requested_by_user_last_name')
+    .where('invite.id',inviteId).first();
+  const markInviteNotificationRead = async (trx, inviteId, userId) => {
+    const notification = await trx('notifications').select('id')
+      .where({user:userId,link_type:'invite',link_id:String(inviteId)}).first();
+    if (notification?.id) await trx('notifications').where({id:notification.id})
+      .update({status:'read',read_at:trx.fn.now()});
+  };
+
+  routes.get('/invites/:inviteId', authenticate, async (req,res) => {
+    const userId = req.auth.userId;
+    const inviteId = String(req.params.inviteId ?? '').trim();
+    if (!inviteId) return fail(res,400,'BAD_REQUEST','inviteId is required.');
+    try {
+      const invite = await db.transaction(async trx => {
+        await trx.raw('select pg_advisory_xact_lock(hashtext(?))',[`wellar-invite-detail:${inviteId}:${userId}`]);
+        const user = await trx('directus_users').select('id','email').where({id:userId}).first();
+        const email = String(user?.email ?? '').trim().toLowerCase();
+        if (!email) {
+          const error = new Error('The current account email could not be verified.');
+          error.code = 'NOT_FOUND'; throw error;
+        }
+        const row = await findInvitation(trx,inviteId);
+        if (!row || String(row.invite_type ?? '').toLowerCase() !== 'in_app' ||
+            String(row.email ?? '').trim().toLowerCase() !== email) {
+          const error = new Error('The requested invitation was not found.');
+          error.code = 'NOT_FOUND'; throw error;
+        }
+        const expired = row.expires_at && Number.isFinite(new Date(row.expires_at).getTime()) &&
+          new Date(row.expires_at).getTime() <= Date.now();
+        const canAct = String(row.status ?? 'pending').toLowerCase() === 'pending' && !expired;
+        return invitationDetail(row,canAct);
+      });
+      return res.status(200).json({data:invite});
+    } catch (error) {
+      if (error.code === 'NOT_FOUND') return fail(res,404,'NOT_FOUND',error.message);
+      req.log?.error?.({errorName:error.name,errorCode:error.code},'[wisepace] invitation detail failed');
+      return fail(res,500,'INTERNAL_ERROR','An unexpected error occurred.');
+    }
+  });
+
+  routes.post('/invites/:inviteId/accept', authenticate, async (req,res) => {
+    const userId = req.auth.userId;
+    const inviteId = String(req.params.inviteId ?? '').trim();
+    if (!inviteId) return fail(res,400,'BAD_REQUEST','inviteId is required.');
+    try {
+      const result = await db.transaction(async trx => {
+        await trx.raw('select pg_advisory_xact_lock(hashtext(?))',[`wellar-invite-accept:${inviteId}:${userId}`]);
+        const roles = getRoleIds(env);
+        const roleRows = await trx('directus_roles').select('id').whereIn('id',Object.values(roles));
+        if (roleRows.length !== 4) {
+          const error = new Error('One or more Wellar role mappings do not match an existing Directus role.');
+          error.code = 'CONFIGURATION_ERROR'; throw error;
+        }
+        const user = await trx('directus_users').select('id','email').where({id:userId}).first();
+        const email = String(user?.email ?? '').trim().toLowerCase();
+        if (!email) {
+          const error = new Error('The current account email could not be verified.');
+          error.code = 'NOT_FOUND'; throw error;
+        }
+        const invite = await findInvitation(trx,inviteId);
+        if (!invite || String(invite.invite_type ?? '').toLowerCase() !== 'in_app') {
+          const error = new Error('The requested invitation was not found.');
+          error.code = 'NOT_FOUND'; throw error;
+        }
+        if (String(invite.email ?? '').trim().toLowerCase() !== email) {
+          const error = new Error('This invitation must be accepted using the invited email address.');
+          error.code = 'FORBIDDEN'; throw error;
+        }
+        const status = String(invite.status ?? 'pending').toLowerCase();
+        const expired = invite.expires_at && Number.isFinite(new Date(invite.expires_at).getTime()) &&
+          new Date(invite.expires_at).getTime() <= Date.now();
+        if (expired) {
+          const error = new Error('Invitation expired.');
+          error.code = 'CONFLICT'; throw error;
+        }
+        const existing = await trx('business_profile_members').select('id','status','member_role','business_profile','department')
+          .where({user:userId,business_profile:invite.business_profile,status:'active'}).first();
+        if (status === 'pending') {
+          if (invite.department) {
+            const department = await trx('departments').select('id','is_active','business_profile')
+              .where({id:invite.department,business_profile:invite.business_profile}).first();
+            if (!department?.id || department.is_active === false) {
+              const error = new Error('The invitation department is no longer valid or active.');
+              error.code = 'CONFLICT'; throw error;
+            }
+          }
+          if (existing?.id) {
+            await trx('request_invites').where({id:invite.id}).update({
+              status:'claimed',accepted_user:userId,claimed_at:trx.fn.now()
+            });
+            await markInviteNotificationRead(trx,invite.id,userId);
+            return {
+              ok:true,message:'Invitation already accepted.',inviteId:String(invite.id),
+              status:'claimed',canAct:false,businessProfileId:String(invite.business_profile),
+              membershipId:String(existing.id),memberRole:roleName(existing.member_role) ?? roleName(invite.member_role) ?? 'employee',
+              departmentId:existing.department ?? invite.department ?? null,inviteType:'in_app'
+            };
+          }
+          const memberRole = roleName(invite.member_role) ?? 'employee';
+          const [membership] = await trx('business_profile_members').insert({
+            user:userId,business_profile:invite.business_profile,member_role:memberRole,
+            department:invite.department ?? null,status:'active',joined_at:trx.fn.now()
+          }).returning(['id','business_profile','member_role','department']);
+          if (!membership?.id) throw new Error('Invite acceptance did not return a membership id.');
+          await trx('request_invites').where({id:invite.id}).update({
+            status:'claimed',accepted_user:userId,claimed_at:trx.fn.now()
+          });
+          await markInviteNotificationRead(trx,invite.id,userId);
+          return {
+            ok:true,message:'Invitation accepted. The organization is now available in Profile → Switch Organization.',
+            inviteId:String(invite.id),status:'claimed',canAct:false,
+            businessProfileId:String(membership.business_profile ?? invite.business_profile),
+            membershipId:String(membership.id),memberRole:roleName(membership.member_role) ?? memberRole,
+            departmentId:membership.department ?? invite.department ?? null,inviteType:'in_app'
+          };
+        }
+        if (status === 'claimed' || status === 'accepted') {
+          if (String(invite.accepted_user) === userId && existing?.id) {
+            await markInviteNotificationRead(trx,invite.id,userId);
+            return {
+              ok:true,message:'Invitation already accepted.',inviteId:String(invite.id),
+              status:'claimed',canAct:false,businessProfileId:String(invite.business_profile),
+              membershipId:String(existing.id),memberRole:roleName(existing.member_role) ?? roleName(invite.member_role) ?? 'employee',
+              departmentId:existing.department ?? invite.department ?? null,inviteType:'in_app'
+            };
+          }
+          const error = new Error('This invitation has already been claimed.');
+          error.code = 'CONFLICT'; throw error;
+        }
+        const error = new Error('This invitation is no longer pending.');
+        error.code = 'CONFLICT'; throw error;
+      });
+      return res.status(200).json({data:result});
+    } catch (error) {
+      if (error.code === 'FORBIDDEN') return fail(res,403,'FORBIDDEN',error.message);
+      if (error.code === 'NOT_FOUND') return fail(res,404,'NOT_FOUND',error.message);
+      if (error.code === 'CONFLICT') return fail(res,409,'CONFLICT',error.message);
+      if (error.code === 'CONFIGURATION_ERROR') return fail(res,503,'CONFIGURATION_ERROR',error.message);
+      req.log?.error?.({errorName:error.name,errorCode:error.code},'[wisepace] invitation acceptance failed');
+      return fail(res,500,'INTERNAL_ERROR','An unexpected error occurred.');
+    }
+  });
+
+  routes.post('/invites/:inviteId/decline', authenticate, async (req,res) => {
+    const userId = req.auth.userId;
+    const inviteId = String(req.params.inviteId ?? '').trim();
+    if (!inviteId) return fail(res,400,'BAD_REQUEST','inviteId is required.');
+    try {
+      const result = await db.transaction(async trx => {
+        await trx.raw('select pg_advisory_xact_lock(hashtext(?))',[`wellar-invite-decline:${inviteId}:${userId}`]);
+        const user = await trx('directus_users').select('id','email').where({id:userId}).first();
+        const email = String(user?.email ?? '').trim().toLowerCase();
+        if (!email) {
+          const error = new Error('The current account email could not be verified.');
+          error.code = 'NOT_FOUND'; throw error;
+        }
+        const invite = await findInvitation(trx,inviteId);
+        if (!invite || String(invite.invite_type ?? '').toLowerCase() !== 'in_app') {
+          const error = new Error('The requested invitation was not found.');
+          error.code = 'NOT_FOUND'; throw error;
+        }
+        if (String(invite.email ?? '').trim().toLowerCase() !== email) {
+          const error = new Error('This invitation must be accepted using the invited email address.');
+          error.code = 'FORBIDDEN'; throw error;
+        }
+        const status = String(invite.status ?? 'pending').toLowerCase();
+        const expired = invite.expires_at && Number.isFinite(new Date(invite.expires_at).getTime()) &&
+          new Date(invite.expires_at).getTime() <= Date.now();
+        if (expired) {
+          const error = new Error('Invitation expired.');
+          error.code = 'CONFLICT'; throw error;
+        }
+        if (status === 'revoked') {
+          await markInviteNotificationRead(trx,invite.id,userId);
+          return {
+            ok:true,message:'Invitation already declined.',inviteId:String(invite.id),
+            status:'revoked',canAct:false,businessProfileId:String(invite.business_profile),
+            membershipId:null,memberRole:roleName(invite.member_role) ?? 'employee',
+            departmentId:invite.department ?? null,inviteType:'in_app'
+          };
+        }
+        if (status === 'claimed' || status === 'accepted') {
+          const error = new Error('This invitation has already been claimed.');
+          error.code = 'CONFLICT'; throw error;
+        }
+        await trx('request_invites').where({id:invite.id}).update({status:'revoked',claimed_at:null});
+        await markInviteNotificationRead(trx,invite.id,userId);
+        return {
+          ok:true,message:'Invitation declined.',inviteId:String(invite.id),
+          status:'revoked',canAct:false,businessProfileId:String(invite.business_profile),
+          membershipId:null,memberRole:roleName(invite.member_role) ?? 'employee',
+          departmentId:invite.department ?? null,inviteType:'in_app'
+        };
+      });
+      return res.status(200).json({data:result});
+    } catch (error) {
+      if (error.code === 'FORBIDDEN') return fail(res,403,'FORBIDDEN',error.message);
+      if (error.code === 'NOT_FOUND') return fail(res,404,'NOT_FOUND',error.message);
+      if (error.code === 'CONFLICT') return fail(res,409,'CONFLICT',error.message);
+      req.log?.error?.({errorName:error.name,errorCode:error.code},'[wisepace] invitation decline failed');
+      return fail(res,500,'INTERNAL_ERROR','An unexpected error occurred.');
+    }
+  });
+
   routes.post('/create', authenticate, async (req,res) => {
     const userId = req.auth.userId;
     const body = req.body ?? {};
