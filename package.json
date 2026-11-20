@@ -11,7 +11,7 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "test": "node --test",
-    "check": "node --check src/server.js && node --check src/routes/workspaces.js && node --check src/middleware/authenticate.js && node --check src/routes/auth.js"
+    "check": "node --check src/server.js && node --check src/routes/workspaces.js && node --check src/routes/organization.js && node --check src/middleware/authenticate.js && node --check src/routes/auth.js"
   },
   "dependencies": {
     "compression": "^1.8.1",
