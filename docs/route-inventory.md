@@ -13,8 +13,8 @@ Source: the compiled Directus endpoint artifact uploaded in this conversation. T
 | POST | `/organization/departments` | Implemented; schema integration verification pending |
 | PATCH | `/organization/departments/:departmentId` | Implemented; schema integration verification pending |
 | POST | `/organization/departments/:departmentId/deactivate` | Implemented; schema integration verification pending |
-| POST | `/scan-requests` | Pending |
-| GET | `/scan-requests` | Pending |
+| POST | `/scan-requests` | Implemented; database integration verification pending |
+| GET | `/scan-requests` | Implemented; database integration verification pending |
 | POST | `/alerts/:alertId/workflow` | Pending |
 | GET | `/workforce` | Pending |
 | POST | `/workspaces/invites` | Implemented for in-app invites; Directus email delivery pending |
@@ -58,6 +58,6 @@ Source: the compiled Directus endpoint artifact uploaded in this conversation. T
 
 `POST /organization/departments/:departmentId/deactivate` is also implemented. It is scoped to the authenticated user's active workspace, restricted to Owner/HR, refuses deactivation while active members remain assigned, and writes an activity event in the same transaction. Live schema and concurrency tests are still required.
 
-`POST /organization/departments` and `PATCH /organization/departments/:departmentId` are implemented with Owner/HR authorization, active-workspace scoping, manager membership eligibility checks, transactional writes, and audit events. Department payload validators have unit tests. Live database, duplicate-name policy, and cross-tenant integration checks remain pending.\n\n`GET /organization` now returns the active workspace profile, departments, member records, pending invitations and role-derived permissions for Owner/HR. It scopes all queries to the authenticated user's active workspace. Response parity and real-schema/cross-tenant tests remain pending.\n\n**Migration count: 13 of 20 routes have at least a partial implementation; 7 routes remain pending.**
+`POST /organization/departments` and `PATCH /organization/departments/:departmentId` are implemented with Owner/HR authorization, active-workspace scoping, manager membership eligibility checks, transactional writes, and audit events. Department payload validators have unit tests. Live database, duplicate-name policy, and cross-tenant integration checks remain pending.\n\n`GET /organization` now returns the active workspace profile, departments, member records, pending invitations and role-derived permissions for Owner/HR. It scopes all queries to the authenticated user's active workspace. Response parity and real-schema/cross-tenant tests remain pending.\n\n### Scan requests\n\n`POST /scan-requests` now validates the target and request type, enforces Owner/HR and active-workspace membership, prevents duplicate open requests, and creates the request, notification, and activity event in one PostgreSQL transaction. `GET /scan-requests` scopes results by workspace and role (Owner/HR, manager department, or employee's own membership) and returns lifecycle states plus queue summary. Push webhook delivery is not yet ported. Live schema, query parity, and concurrency tests remain required.\n\n**Migration count: 15 of 20 routes have at least a partial implementation; 5 routes remain pending.**
 
 **Not yet production-ready:** no live PostgreSQL integration test has been run; the new JWT issuer/secret contract has not been connected to the existing frontend or identity provider; the Directus schema and role UUID environment values still need verification. Do not point production traffic at this service yet.
