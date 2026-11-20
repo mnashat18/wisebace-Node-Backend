@@ -28,6 +28,7 @@ npm run dev
 - `POST /workspaces/switch`: switch the authenticated user's active workspace (requires a valid API bearer token and role UUID configuration)
 - `GET /workspaces/invites/:inviteId`: retrieve an in-app invitation for its invited account
 - `PATCH /organization/profile`: update the active organization profile (owner only)
+- `POST /organization/departments/:departmentId/deactivate`: deactivate an empty department (Owner/HR only)
 - `POST /workspaces/invites`: create an in-app invitation for an existing account (email delivery for unknown accounts still requires the Directus mail flow)
 - `POST /workspaces/invites/:inviteId/accept`: accept an invitation and create membership
 - `POST /workspaces/invites/:inviteId/decline`: decline an invitation
