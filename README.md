@@ -27,7 +27,7 @@ npm run dev
 - `GET /workspaces/context`: list eligible memberships and invitations (requires a valid API bearer token)
 - `POST /workspaces/switch`: switch the authenticated user's active workspace (requires a valid API bearer token and role UUID configuration)
 - `GET /workspaces/invites/:inviteId`: retrieve an in-app invitation for its invited account
-- `PATCH /organization/profile`: update the active organization profile (owner only)
+- `GET /organization`: retrieve the active organization profile, departments, members, invites and permissions (Owner/HR only)\n- `PATCH /organization/profile`: update the active organization profile (owner only)
 - `POST /organization/departments`: create a department (Owner/HR only)\n- `PATCH /organization/departments/:departmentId`: update its name or manager (Owner/HR only)\n- `POST /organization/departments/:departmentId/deactivate`: deactivate an empty department (Owner/HR only)
 - `POST /workspaces/invites`: create an in-app invitation for an existing account (email delivery for unknown accounts still requires the Directus mail flow)
 - `POST /workspaces/invites/:inviteId/accept`: accept an invitation and create membership
