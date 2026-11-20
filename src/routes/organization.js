@@ -108,6 +108,110 @@ export function createOrganizationRouter({db,authenticate}) {
   const router = express.Router();
 
 
+
+  router.get('/',authenticate,async (req,res) => {
+    const userId = req.auth.userId;
+    try {
+      const organization = await db.transaction(async trx => {
+        const user = await trx('directus_users').select(
+          'active_business_profile','active_department','active_member_role'
+        ).where({id:userId}).first();
+        if (!user?.active_business_profile) {
+          const error = new Error('A verified active organization membership is required.');
+          error.code = 'NOT_FOUND'; throw error;
+        }
+        const membership = await trx('business_profile_members as member')
+          .innerJoin('business_profiles as profile','profile.id','member.business_profile')
+          .select('member.id','member.member_role','member.status','member.business_profile as workspace_id',
+            'member.department as department_id','profile.is_active')
+          .where('member.user',userId).andWhere('member.business_profile',user.active_business_profile)
+          .andWhere('member.status','active').andWhere('profile.is_active',true).first();
+        if (!membership) {
+          const error = new Error('A verified active organization membership is required.');
+          error.code = 'NOT_FOUND'; throw error;
+        }
+        const role = roleName(membership.member_role);
+        if (!['owner','hr'].includes(role)) {
+          const error = new Error('Owner or HR access is required.');
+          error.code = 'FORBIDDEN'; throw error;
+        }
+        const workspaceId = membership.workspace_id;
+        const [profile,departments,members,invites] = await Promise.all([
+          trx('business_profiles').select(
+            'id','company_name','contact_name','phone','industry','team_size','country','city',
+            'website','timezone','default_language','is_active','plan_code','billing_status',
+            'date_created','date_updated'
+          ).where({id:workspaceId}).first(),
+          trx('departments').select(
+            'id','name','is_active','business_profile','manager_member','date_created','date_updated'
+          ).where({business_profile:workspaceId}).orderBy('name','asc'),
+          trx('business_profile_members as member')
+            .leftJoin('departments as department','department.id','member.department')
+            .leftJoin('directus_users as account','account.id','member.user')
+            .select('member.id','member.status','member.member_role','member.user as user_id',
+              'member.business_profile','member.department as department_id','member.joined_at',
+              'member.date_created','member.date_updated','department.name as department_name',
+              'account.first_name','account.last_name','account.email as user_email')
+            .where('member.business_profile',workspaceId).orderBy('member.id','desc'),
+          trx('request_invites as invite')
+            .leftJoin('departments as department','department.id','invite.department')
+            .select('invite.id','invite.email','invite.member_role','invite.status','invite.invite_type',
+              'invite.department as department_id','department.name as department_name')
+            .where('invite.business_profile',workspaceId).whereIn('invite.status',['pending','sent'])
+            .orderBy('invite.id','desc')
+        ]);
+        if (!profile) {
+          const error = new Error('The active organization profile was not found.');
+          error.code = 'NOT_FOUND'; throw error;
+        }
+        return {
+          profile:{
+            id:String(profile.id),company_name:profile.company_name??null,
+            contact_name:profile.contact_name??null,phone:profile.phone??null,
+            industry:profile.industry??null,team_size:profile.team_size??null,
+            country:profile.country??null,city:profile.city??null,website:profile.website??null,
+            timezone:profile.timezone??null,default_language:profile.default_language??null,
+            is_active:profile.is_active===true,plan_code:profile.plan_code??null,
+            billing_status:profile.billing_status??null,date_created:profile.date_created??null,
+            date_updated:profile.date_updated??null
+          },
+          departments:departments.map(row=>({
+            id:String(row.id),name:row.name??'Department',is_active:row.is_active===true,
+            business_profile:String(row.business_profile),manager_member_id:row.manager_member??null,
+            date_created:row.date_created??null,date_updated:row.date_updated??null
+          })),
+          members:members.map(row=>({
+            id:String(row.id),status:row.status??null,member_role:roleName(row.member_role),
+            user_id:row.user_id??null,
+            user_name:[row.first_name,row.last_name].filter(Boolean).join(' ').trim()||row.user_email||'Member',
+            user_email:row.user_email??null,business_profile:row.business_profile??null,
+            department_id:row.department_id??null,department_name:row.department_name??null,
+            joined_at:row.joined_at??null,date_created:row.date_created??null,
+            date_updated:row.date_updated??null
+          })),
+          invites:invites.map(row=>({
+            id:String(row.id),email:row.email??'Unavailable',
+            member_role:roleName(row.member_role),status:row.status??null,
+            department_id:row.department_id??null,department_name:row.department_name??null
+          })),
+          permissions:{
+            canEditProfile:role==='owner',
+            canManageDepartments:role==='owner'||role==='hr',
+            canViewMembers:role==='owner'||role==='hr',
+            canViewInvites:role==='owner'||role==='hr',
+            canUseComingSoonControls:false
+          }
+        };
+      });
+      return res.status(200).json({data:organization});
+    } catch(error) {
+      if (error.code==='FORBIDDEN') return fail(res,403,'FORBIDDEN',error.message);
+      if (error.code==='NOT_FOUND') return fail(res,404,'NOT_FOUND',error.message);
+      req.log?.error?.({errorName:error.name,errorCode:error.code},'[wisepace] organization context failed');
+      return fail(res,500,'INTERNAL_ERROR','An unexpected error occurred.');
+    }
+  });
+
   router.post('/departments',authenticate,async (req,res) => {
     const parsed = parseDepartmentCreate(req.body ?? {});
     if (parsed.error) return fail(res,400,'BAD_REQUEST',parsed.error);
