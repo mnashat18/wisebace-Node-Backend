@@ -52,7 +52,7 @@ app.use((err,_req,res,_next) => {
     message:forbidden ? 'Origin is not allowed.' : 'An unexpected error occurred.'
   }});
 });
-const server = app.listen(port,() => process.stdout.write(`WisePace API listening on :${port}\\n`));
+const server = app.listen(port,() => process.stdout.write(`WisePace API listening on :${port}\n`));
 for (const signal of ['SIGINT','SIGTERM']) {
   process.on(signal,() => server.close(async () => { if(db) await db.destroy(); process.exit(0); }));
 }
