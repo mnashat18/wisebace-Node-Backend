@@ -10,8 +10,8 @@ Source: the compiled Directus endpoint artifact uploaded in this conversation. T
 | POST | `/account-deletion-requests` | Pending |
 | GET | `/organization` | Pending |
 | PATCH | `/organization/profile` | Implemented; schema integration verification pending |
-| POST | `/organization/departments` | Pending |
-| PATCH | `/organization/departments/:departmentId` | Pending |
+| POST | `/organization/departments` | Implemented; schema integration verification pending |
+| PATCH | `/organization/departments/:departmentId` | Implemented; schema integration verification pending |
 | POST | `/organization/departments/:departmentId/deactivate` | Implemented; schema integration verification pending |
 | POST | `/scan-requests` | Pending |
 | GET | `/scan-requests` | Pending |
@@ -58,6 +58,6 @@ Source: the compiled Directus endpoint artifact uploaded in this conversation. T
 
 `POST /organization/departments/:departmentId/deactivate` is also implemented. It is scoped to the authenticated user's active workspace, restricted to Owner/HR, refuses deactivation while active members remain assigned, and writes an activity event in the same transaction. Live schema and concurrency tests are still required.
 
-**Migration count: 10 of 20 routes have at least a partial implementation; 10 routes remain pending.**
+`POST /organization/departments` and `PATCH /organization/departments/:departmentId` are implemented with Owner/HR authorization, active-workspace scoping, manager membership eligibility checks, transactional writes, and audit events. Department payload validators have unit tests. Live database, duplicate-name policy, and cross-tenant integration checks remain pending.\n\n**Migration count: 12 of 20 routes have at least a partial implementation; 8 routes remain pending.**
 
 **Not yet production-ready:** no live PostgreSQL integration test has been run; the new JWT issuer/secret contract has not been connected to the existing frontend or identity provider; the Directus schema and role UUID environment values still need verification. Do not point production traffic at this service yet.
