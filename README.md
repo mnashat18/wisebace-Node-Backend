@@ -4,7 +4,7 @@ Standalone Node.js migration target for the existing WisePace Directus endpoint 
 
 ## Current state
 
-This migration includes a hardened Express server, PostgreSQL connectivity, health/readiness checks, JWT identity middleware, and eight migrated endpoints covering email availability, workspace context/switch/create, in-app invitation creation/detail/accept/decline.
+This migration includes a hardened Express server, PostgreSQL connectivity, health/readiness checks, JWT identity middleware, and nine migrated endpoints covering email availability, organization profile updates, workspace context/switch/create, and in-app invitation creation/detail/accept/decline.
 
 **This is not a completed Directus replacement.** Routes not yet migrated return `501`. Workspace creation is implemented but still requires live PostgreSQL integration tests and connection to the existing identity provider before production use. The current production Directus extension must remain in service until parity is complete.
 
