@@ -12,6 +12,7 @@ import { createScanRequestsRouter } from './routes/scan-requests.js';
 import { createAlertsRouter } from './routes/alerts.js';
 import { createWorkforceRouter } from './routes/workforce.js';
 import { createAccountDeletionRouter } from './routes/account-deletion.js';
+import { createProtectedFilesRouter } from './routes/files.js';
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -52,6 +53,7 @@ app.use('/scan-requests',requireDatabase,createScanRequestsRouter({db,authentica
 app.use('/alerts',requireDatabase,createAlertsRouter({db,authenticate}));
 app.use('/workforce',requireDatabase,createWorkforceRouter({db,authenticate}));
 app.use('/account-deletion-requests',createAccountDeletionRouter({env:process.env}));
+app.use('/',requireDatabase,authenticate,createProtectedFilesRouter({env:process.env}));
 app.use((_req,res) => res.status(501).json({
   error:{code:'NOT_IMPLEMENTED',message:'This endpoint has not been migrated yet.'}
 }));
