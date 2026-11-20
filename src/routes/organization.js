@@ -67,8 +67,11 @@ const parseManagerId = value => {
 };
 const parseDepartmentName = value => {
   if (typeof value !== 'string') return null;
-  const name = value.trim().replace(/\\s+/g,' ');
-  if (!name || name.length > 120 || /[\\u0000-\\u001f\\u007f]/.test(name)) return null;
+  const name = value.trim().replaceAll('\\t',' ').replaceAll('\\n',' ').replaceAll('\\r',' ')
+    .split(' ').filter(Boolean).join(' ');
+  if (!name || name.length > 120 ||
+      [...name].some(character => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127))
+    return null;
   return name;
 };
 export function parseDepartmentCreate(body) {
