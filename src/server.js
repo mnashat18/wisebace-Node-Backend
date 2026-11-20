@@ -39,7 +39,7 @@ app.get('/ready',async (_req,res) => {
   try { await db.raw('select 1'); return res.status(200).json({status:'ready',database:'connected'}); }
   catch { return res.status(503).json({status:'not_ready',database:'unavailable'}); }
 });
-app.use('/workspaces',requireDatabase,createWorkspaceRouter({db:db || (()=>{throw new Error('Database unavailable')})(),env:process.env,authenticate}));
+app.use('/workspaces',requireDatabase,createWorkspaceRouter({db,env:process.env,authenticate}));
 app.use((_req,res) => res.status(501).json({
   error:{code:'NOT_IMPLEMENTED',message:'This endpoint has not been migrated yet.'}
 }));
