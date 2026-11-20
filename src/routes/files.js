@@ -76,7 +76,7 @@ export function createProtectedFilesRouter({env=process.env,fetchImpl=fetch}={})
    return fail(res,502,'FILE_STORAGE_ERROR','Avatar upload could not be completed.');
   }
  });
- router.get('/:fileId',async(req,res)=>{
+ router.get('/files/:fileId',async(req,res)=>{
   const id=String(req.params.fileId??'');if(!UUID.test(id))return fail(res,404,'NOT_FOUND','File not found.');
   const cfg=config(env);if(!cfg)return fail(res,503,'CONFIGURATION_ERROR','File storage is not configured.');
   try{
