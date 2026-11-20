@@ -1,18 +1,11 @@
 import express from 'express';
+import { normalizeEmail } from '../lib/email.js';
 
 const attemptsByIp = new Map();
 const WINDOW_MS = 60_000;
 const MAX_REQUESTS = 10;
 const MIN_RESPONSE_MS = 250;
 const MAX_TRACKED_IPS = 2_000;
-const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-export function normalizeEmail(value) {
-  if (typeof value !== 'string') return null;
-  const email = value.trim().toLowerCase();
-  return email && email.length <= 254 && emailPattern.test(email) ? email : null;
-}
-
 function clientIp(req) {
   return (typeof req.ip === 'string' && req.ip.trim()) ||
     (typeof req.socket?.remoteAddress === 'string' && req.socket.remoteAddress.trim()) || 'unknown';
