@@ -2,7 +2,8 @@ import express from 'express';
 import { randomUUID } from 'node:crypto';
 import {
   buildBusinessProfileInsertPayload, buildCompanyPayload, buildCreatedWorkspaceResponse,
-  buildOwnerMembershipInsertPayload, buildWorkspaceCreatedActivityEventPayload
+  buildOwnerMembershipInsertPayload, buildWorkspaceCreatedActivityEventPayload,
+  validateWorkspaceInvitePayload
 } from '../../reference/directus-extension.dist.js';
 
 const forbiddenFields = new Set([
@@ -35,6 +36,152 @@ function getRoleIds(env) {
 
 export function createWorkspaceRouter({ db, env = process.env, authenticate }) {
   const routes = express.Router();
+
+  routes.post('/invites', authenticate, async (req,res) => {
+    const parsed = validateWorkspaceInvitePayload(req.body ?? {});
+    if (!parsed.ok) return fail(res,400,'BAD_REQUEST',parsed.message);
+    const userId = req.auth.userId;
+    try {
+      const result = await db.transaction(async trx => {
+        const active = await trx('business_profile_members as member')
+          .innerJoin('business_profiles as profile','profile.id','member.business_profile')
+          .select('member.id','member.member_role','member.status',
+            'member.business_profile as workspace_id','profile.company_name','profile.is_active')
+          .where('member.user',userId).andWhere('member.status','active')
+          .andWhere('profile.is_active',true).first();
+        if (!active) {
+          const error = new Error('A verified active organization membership is required.');
+          error.code = 'NOT_FOUND'; throw error;
+        }
+        const actorRole = roleName(active.member_role);
+        if (!['owner','hr'].includes(actorRole)) {
+          const error = new Error('Owner or HR access is required.');
+          error.code = 'FORBIDDEN'; throw error;
+        }
+        const email = String(parsed.payload.email).trim().toLowerCase();
+        await trx.raw('select pg_advisory_xact_lock(hashtext(?))',
+          [`wellar-workspace-invite:${active.workspace_id}:${email}`]);
+        const existingUser = await trx('directus_users').select('id','email')
+          .whereRaw('LOWER(TRIM(email)) = ?',[email]).first();
+        if (existingUser?.id) {
+          const existingMember = await trx('business_profile_members').select('id','status')
+            .where({user:existingUser.id,business_profile:active.workspace_id})
+            .whereIn('status',['active','invited']).first();
+          if (existingMember?.id) {
+            const error = new Error('This person is already an active member of the organization.');
+            error.code = 'CONFLICT'; throw error;
+          }
+        }
+        if (parsed.payload.department) {
+          const department = await trx('departments').select('id','name','is_active','business_profile')
+            .where({id:parsed.payload.department,business_profile:active.workspace_id}).first();
+          if (!department?.id || department.is_active === false) {
+            const error = new Error('The selected department does not belong to the active organization or is inactive.');
+            error.code = 'NOT_FOUND'; throw error;
+          }
+        }
+        const pending = existingUser?.id ? await trx('request_invites as invite')
+          .leftJoin('departments as department','department.id','invite.department')
+          .select('invite.id','invite.email','invite.member_role','invite.status','invite.business_profile',
+            'invite.department','invite.invite_type','invite.expires_at','invite.requested_by_user',
+            'department.name as department_name')
+          .where('invite.business_profile',active.workspace_id)
+          .whereRaw('LOWER(TRIM(invite.email)) = ?',[email])
+          .whereIn('invite.status',['pending','sent']).orderBy('invite.id','desc').first() : null;
+        if (pending && (!pending.expires_at ||
+            !Number.isFinite(new Date(pending.expires_at).getTime()) ||
+            new Date(pending.expires_at).getTime() > Date.now())) {
+          const same = String(pending.email).trim().toLowerCase() === email &&
+            roleName(pending.member_role) === parsed.payload.member_role &&
+            String(pending.department ?? '') === String(parsed.payload.department ?? '');
+          if (!same) {
+            const error = new Error('A pending invitation already exists for this email address.');
+            error.code = 'CONFLICT'; throw error;
+          }
+          const notification = await trx('notifications').select('id')
+            .where({user:existingUser.id,link_type:'invite',link_id:String(pending.id)}).first();
+          return {status:200,data:{
+            ok:true,message:'Invitation sent in Wellar.',inviteId:String(pending.id),
+            deliveryChannel:'in_app',...(notification?.id ? {notificationId:String(notification.id)} : {}),
+            invite:{id:String(pending.id),email:pending.email,
+              memberRole:roleName(pending.member_role) ?? 'employee',status:pending.status ?? 'pending',
+              department:pending.department ? {id:String(pending.department),name:pending.department_name ?? 'Department'} : null,
+              inviteType:'in_app'}
+          }};
+        }
+        // Unknown email addresses require the original Directus ItemsService + email flow.
+        // Do not create an email-type invite unless a real delivery provider is wired in.
+        if (!existingUser?.id) {
+          const error = new Error('Email invitations require the Directus invitation service and configured mail flow.');
+          error.code = 'EMAIL_DELIVERY_NOT_CONFIGURED'; throw error;
+        }
+        const expiresAt = new Date(Date.now()+7*24*60*60*1000).toISOString();
+        const [invite] = await trx('request_invites').insert({
+          email,member_role:parsed.payload.member_role,business_profile:active.workspace_id,
+          requested_by_user:userId,invite_type:'in_app',status:'pending',
+          department:parsed.payload.department ?? null,sent_at:null,claimed_at:null,
+          expires_at:expiresAt,accepted_user:null
+        }).returning(['id','email','member_role','status','business_profile','department',
+          'invite_type','expires_at','requested_by_user']);
+        if (!invite?.id) throw new Error('Invitation creation did not return an id.');
+        const [existingNotification] = await trx('notifications').select('id')
+          .where({user:existingUser.id,link_type:'invite',link_id:String(invite.id)}).limit(1);
+        let notificationId = existingNotification?.id ?? null;
+        if (!notificationId) {
+          const meta = JSON.stringify({
+            type:'workspace_invitation',screen:'invite_detail',invite_id:String(invite.id),
+            invite_type:'in_app',business_profile_id:String(active.workspace_id),
+            department_id:parsed.payload.department ?? null,requested_by_user:userId,notification_id:null
+          });
+          const [notification] = await trx('notifications').insert({
+            user:existingUser.id,business_profile:null,
+            title:`${active.company_name || 'Workspace'} invitation`,
+            body:`You have been invited to join ${active.company_name || 'this organization'} as ${parsed.payload.member_role === 'hr' ? 'HR' : parsed.payload.member_role === 'manager' ? 'Manager' : 'Employee'}.`,
+            type:'invite',status:'unread',link_type:'invite',link_id:String(invite.id),
+            read_at:null,meta
+          }).returning(['id']);
+          if (!notification?.id) throw new Error('Invite notification creation did not return an id.');
+          notificationId = notification.id;
+          await trx('notifications').where({id:notificationId}).update({
+            meta:JSON.stringify({
+              type:'workspace_invitation',screen:'invite_detail',invite_id:String(invite.id),
+              invite_type:'in_app',business_profile_id:String(active.workspace_id),
+              department_id:parsed.payload.department ?? null,requested_by_user:userId,
+              notification_id:String(notificationId)
+            })
+          });
+        }
+        await trx('activity_events').insert({
+          actor:userId,target_user:userId,action:'organization_invite_created',
+          entity_type:'request_invite',entity_id:String(invite.id),
+          business_profile:active.workspace_id,
+          payload:JSON.stringify({source:'web_workspace_invites',email:invite.email ?? null,
+            member_role:invite.member_role ?? null,department_id:parsed.payload.department ?? null,
+            invite_type:'in_app'})
+        });
+        const department = parsed.payload.department ? await trx('departments')
+          .select('id','name').where({id:parsed.payload.department}).first() : null;
+        return {status:201,data:{
+          ok:true,message:'Invitation sent in Wellar.',inviteId:String(invite.id),
+          deliveryChannel:'in_app',notificationId:String(notificationId),
+          invite:{id:String(invite.id),email:invite.email,
+            memberRole:roleName(invite.member_role) ?? 'employee',status:invite.status ?? 'pending',
+            department:department ? {id:String(department.id),name:department.name ?? 'Department'} : null,
+            inviteType:'in_app'}
+        }};
+      });
+      return res.status(result.status).json({data:result.data});
+    } catch (error) {
+      if (error.code === 'FORBIDDEN') return fail(res,403,'FORBIDDEN',error.message);
+      if (error.code === 'NOT_FOUND') return fail(res,404,'NOT_FOUND',error.message);
+      if (error.code === 'CONFLICT') return fail(res,409,'CONFLICT',error.message);
+      if (error.code === 'EMAIL_DELIVERY_NOT_CONFIGURED')
+        return fail(res,503,'EMAIL_DELIVERY_NOT_CONFIGURED',error.message);
+      req.log?.error?.({errorName:error.name,errorCode:error.code},'[wisepace] invite creation failed');
+      return fail(res,500,'INTERNAL_ERROR','An unexpected error occurred.');
+    }
+  });
+
   routes.get('/context', authenticate, async (req,res) => {
     const userId = req.auth.userId;
     try {
