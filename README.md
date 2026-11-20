@@ -4,7 +4,7 @@ Standalone Node.js migration target for the existing WisePace Directus endpoint 
 
 ## Current state
 
-This migration includes a hardened Express server, PostgreSQL connectivity, health/readiness checks, JWT identity middleware, and seven migrated endpoints covering email availability, workspace context/switch/create, and in-app invitation detail/accept/decline.
+This migration includes a hardened Express server, PostgreSQL connectivity, health/readiness checks, JWT identity middleware, and eight migrated endpoints covering email availability, workspace context/switch/create, in-app invitation creation/detail/accept/decline.
 
 **This is not a completed Directus replacement.** Routes not yet migrated return `501`. Workspace creation is implemented but still requires live PostgreSQL integration tests and connection to the existing identity provider before production use. The current production Directus extension must remain in service until parity is complete.
 
@@ -27,7 +27,7 @@ npm run dev
 - `GET /workspaces/context`: list eligible memberships and invitations (requires a valid API bearer token)
 - `POST /workspaces/switch`: switch the authenticated user's active workspace (requires a valid API bearer token and role UUID configuration)
 - `GET /workspaces/invites/:inviteId`: retrieve an in-app invitation for its invited account
-- `POST /workspaces/invites/:inviteId/accept`: accept an invitation and create membership
+- `POST /workspaces/invites`: create an in-app invitation for an existing account (email delivery for unknown accounts still requires the Directus mail flow)\n- `POST /workspaces/invites/:inviteId/accept`: accept an invitation and create membership
 - `POST /workspaces/invites/:inviteId/decline`: decline an invitation
 - `POST /workspaces/create`: create a workspace and owner membership (requires a valid API bearer token and role UUID configuration)
 
