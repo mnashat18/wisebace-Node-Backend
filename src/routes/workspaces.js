@@ -84,14 +84,26 @@ export function createWorkspaceRouter({ db, env = process.env, authenticate }) {
         const activeRole = normalizeRole(user?.active_member_role);
         let active = null;
         if (eligible.length) {
-          const sameWorkspace = activeBusiness ? eligible.filter(row => String(row.workspace_id) === activeBusiness) : [];
-          const candidates = sameWorkspace.length ? sameWorkspace : eligible;
-          const exact = candidates.filter(row =>
-            (!activeDepartment || String(row.department_id ?? '') === activeDepartment) &&
-            (!activeRole || normalizeRole(row.member_role) === activeRole));
-          const departmentMatches = candidates.filter(row =>
-            !activeDepartment || String(row.department_id ?? '') === activeDepartment);
-          active = sortMemberships(exact.length ? exact : departmentMatches.length ? departmentMatches : candidates)[0];
+          const sameWorkspace = activeBusiness
+            ? eligible.filter(row => String(row.workspace_id) === activeBusiness)
+            : [];
+          if (!activeBusiness || !sameWorkspace.length) {
+            active = sortMemberships(eligible)[0];
+          } else {
+            const exact = activeDepartment && activeRole
+              ? sameWorkspace.filter(row => String(row.department_id ?? '') === activeDepartment &&
+                  normalizeRole(row.member_role) === activeRole)
+              : [];
+            const departmentMatches = activeDepartment
+              ? sameWorkspace.filter(row => String(row.department_id ?? '') === activeDepartment)
+              : [];
+            const roleMatches = activeRole
+              ? sameWorkspace.filter(row => normalizeRole(row.member_role) === activeRole)
+              : [];
+            active = sortMemberships(exact.length ? exact :
+              departmentMatches.length ? departmentMatches :
+              roleMatches.length ? roleMatches : sameWorkspace)[0];
+          }
         }
         const workspace = row => ({
           id:String(row.workspace_id ?? row.id ?? ''),
@@ -149,7 +161,7 @@ export function createWorkspaceRouter({ db, env = process.env, authenticate }) {
     const body = req.body ?? {};
     if (!body || typeof body !== 'object' || Array.isArray(body))
       return fail(res,400,'BAD_REQUEST','Request body must be a JSON object.');
-    const membershipId = String(body.membership_id ?? '').trim();
+    const membershipId = (typeof body.membership_id === 'string' || typeof body.membership_id === 'number') ? String(body.membership_id).trim() : '';
     if (!membershipId) return fail(res,400,'BAD_REQUEST','membership_id is required.');
     if (Object.keys(body).some(key => key !== 'membership_id'))
       return fail(res,400,'BAD_REQUEST','Only membership_id is accepted.');
