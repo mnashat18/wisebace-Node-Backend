@@ -17,7 +17,7 @@ Source: the compiled Directus endpoint artifact uploaded in this conversation. T
 | GET | `/scan-requests` | Pending |
 | POST | `/alerts/:alertId/workflow` | Pending |
 | GET | `/workforce` | Pending |
-| POST | `/workspaces/invites` | Pending |
+| POST | `/workspaces/invites` | Implemented for in-app invites; Directus email delivery pending |
 | GET | `/workspaces/context` | Implemented; integration verification pending |
 | GET | `/workspaces/invites/:inviteId` | Implemented; integration verification pending |
 | POST | `/workspaces/invites/:inviteId/accept` | Implemented; integration verification pending |
@@ -40,6 +40,8 @@ Source: the compiled Directus endpoint artifact uploaded in this conversation. T
 
 ### In-app invitations
 
+`POST /workspaces/invites` now validates the invite payload, restricts creation to Owner/HR in an active workspace, checks department ownership/activity, prevents duplicate memberships and conflicting pending invites, and creates the invitation, notification, and activity event transactionally for existing accounts. Unknown email addresses return an explicit 503 until the original Directus ItemsService/mail-flow integration is connected; no undelivered email invite is created. Live schema and notification-payload integration tests remain required.
+
 `GET /workspaces/invites/:inviteId`, `POST /workspaces/invites/:inviteId/accept`, and `POST /workspaces/invites/:inviteId/decline` have been ported. They verify the signed-in account email against the invite, restrict access to in-app invitations, enforce expiry/status checks, create membership only after validating the department, update invite claim/decline state, and mark the linked notification read within the transaction. Integration tests against the actual Directus schema are still required.
 
 ### Workspace context and switching
@@ -49,5 +51,7 @@ Source: the compiled Directus endpoint artifact uploaded in this conversation. T
 ### Workspace creation
 
 `POST /workspaces/create` has been ported to Express with JWT identity verification, UUID role-map validation against `directus_roles`, a PostgreSQL advisory transaction lock, workspace + owner-membership creation, active workspace selection, and a non-blocking audit insert. It reuses the original compiled artifact's validation and response-payload helpers. Unit tests cover the reused source rules.
+
+**Migration count: 8 of 20 routes have at least a partial implementation; 12 routes remain pending.**
 
 **Not yet production-ready:** no live PostgreSQL integration test has been run; the new JWT issuer/secret contract has not been connected to the existing frontend or identity provider; the Directus schema and role UUID environment values still need verification. Do not point production traffic at this service yet.
