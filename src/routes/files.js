@@ -41,7 +41,7 @@ async function exists(fetchImpl,cfg,path){
  const r=await directus(fetchImpl,cfg,path);if(!r.ok)return false;
  const body=await r.json();return Array.isArray(body.data)&&body.data.length>0;
 }
-export function createProtectedFilesRouter({env=process.env,fetchImpl=fetch}={}){
+export function createProtectedFilesRouter({env=process.env,fetchImpl=fetch,db}={}){
  const router=express.Router();
  router.post('/avatar',async(req,res)=>{
   const cfg=config(env);if(!cfg)return fail(res,503,'CONFIGURATION_ERROR','File storage is not configured.');
@@ -81,16 +81,19 @@ export function createProtectedFilesRouter({env=process.env,fetchImpl=fetch}={})
   const cfg=config(env);if(!cfg)return fail(res,503,'CONFIGURATION_ERROR','File storage is not configured.');
   try{
    const userId=encodeURIComponent(req.auth.userId),fileId=encodeURIComponent(id);
-   const checks=[
-    '/users?filter[id][_eq]='+userId+'&filter[avatar][_eq]='+fileId+'&fields=id&limit=1',
-    '/business_profile_members?filter[user][avatar][_eq]='+fileId+'&fields=id&limit=1',
-    '/reports_exports?filter[file][_eq]='+fileId+'&fields=id&limit=1',
-    '/scan_media?filter[thumbnail][_eq]='+fileId+'&fields=id&limit=1',
-    '/scan_media?filter[audio_file][_eq]='+fileId+'&fields=id&limit=1',
-    '/scan_media?filter[video_file][_eq]='+fileId+'&fields=id&limit=1'
-   ];
-   const results=await Promise.all(checks.map(path=>exists(fetchImpl,cfg,path)));
-   if(!results.some(Boolean))return fail(res,404,'NOT_FOUND','File not found.');
+   const ownAvatar=await exists(fetchImpl,cfg,'/users?filter[id][_eq]='+userId+'&filter[avatar][_eq]='+fileId+'&fields=id&limit=1');
+   let memberAvatar=false;
+   if(db){
+    const user=await db('directus_users').select('active_business_profile').where({id:req.auth.userId}).first();
+    if(user?.active_business_profile){
+     const workspace=encodeURIComponent(String(user.active_business_profile));
+     memberAvatar=await exists(fetchImpl,cfg,'/business_profile_members?filter[business_profile][_eq]='+workspace+
+      '&filter[user][avatar][_eq]='+fileId+'&fields=id&limit=1');
+    }
+   }
+   // Report exports and scan media are intentionally denied until their ownership
+   // and tenant-scoping rules can be reproduced from the source schema.
+   if(!ownAvatar&&!memberAvatar)return fail(res,404,'NOT_FOUND','File not found.');
    const range=String(req.headers.range??'').trim();
    if(range&&!/^bytes=(\d*)-(\d*)$/.test(range))return res.status(416).end();
    const asset=await directus(fetchImpl,cfg,'/assets/'+fileId+(range?'?range='+encodeURIComponent(range):''),{
@@ -98,12 +101,7 @@ export function createProtectedFilesRouter({env=process.env,fetchImpl=fetch}={})
    });
    if(!asset.ok)return fail(res,404,'NOT_FOUND','File not found.');
    const contentType=String(asset.headers.get('content-type')??'application/octet-stream').toLowerCase();
-   const allowed=results[0]&&MIME.has(contentType)?{type:contentType,attachment:false}:
-    results[1]&&MIME.has(contentType)?{type:contentType,attachment:false}:
-    results[2]?{type:'application/octet-stream',attachment:true}:
-    results[3]&&MIME.has(contentType)?{type:contentType,attachment:false}:
-    results[4]&&contentType.startsWith('audio/')?{type:contentType,attachment:false}:
-    results[5]&&contentType.startsWith('video/')?{type:contentType,attachment:false}:null;
+   const allowed=(ownAvatar||memberAvatar)&&MIME.has(contentType)?{type:contentType,attachment:false}:null;
    if(!allowed)return fail(res,404,'NOT_FOUND','File not found.');
    res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Cache-Control','private, no-store');
    res.setHeader('Accept-Ranges','bytes');res.setHeader('Content-Type',allowed.type);
