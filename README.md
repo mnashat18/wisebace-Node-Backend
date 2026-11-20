@@ -22,7 +22,9 @@ npm run dev
 ```
 
 - `GET /health`: process health
-- `GET /ready`: PostgreSQL readiness (requires `DATABASE_URL`)\n- `POST /auth/email-availability`: rate-limited email availability check\n- `POST /workspaces/create`: create a workspace and owner membership (requires a valid API bearer token and role UUID configuration)
+- `GET /ready`: PostgreSQL readiness (requires `DATABASE_URL`)
+- `POST /auth/email-availability`: rate-limited email availability check
+- `POST /workspaces/create`: create a workspace and owner membership (requires a valid API bearer token and role UUID configuration)
 
 ## Authentication configuration
 
