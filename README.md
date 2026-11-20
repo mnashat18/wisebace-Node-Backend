@@ -24,7 +24,13 @@ npm run dev
 - `GET /health`: process health
 - `GET /ready`: PostgreSQL readiness (requires `DATABASE_URL`)
 
-## Authentication configuration\n\nThe current API accepts HS256 bearer tokens configured with `AUTH_JWT_SECRET`, optional issuer/audience checks, and a UUID `sub` claim that resolves to an active row in `directus_users`. This is a new standalone token contract, not a drop-in compatibility claim for Directus cookies or tokens. Do not switch the frontend until its authentication flow is explicitly integrated and tested.\n\nConfigure the four `WELLAR_*_ROLE_ID` variables with distinct existing Directus role UUIDs.\n\n## Migration principles
+## Authentication configuration
+
+The current API accepts HS256 bearer tokens configured with `AUTH_JWT_SECRET`, optional issuer/audience checks, and a UUID `sub` claim that resolves to an active row in `directus_users`. This is a new standalone token contract, not a drop-in compatibility claim for Directus cookies or tokens. Do not switch the frontend until its authentication flow is explicitly integrated and tested.
+
+Configure the four `WELLAR_*_ROLE_ID` variables with distinct existing Directus role UUIDs.
+
+## Migration principles
 
 1. Preserve externally observable API behavior, not Directus internals.
 2. Reimplement authentication explicitly; never trust client-supplied user/workspace IDs.
