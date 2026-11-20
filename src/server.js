@@ -6,6 +6,7 @@ import compression from 'compression';
 import knexFactory from 'knex';
 import { createAuthenticate } from './middleware/authenticate.js';
 import { createWorkspaceRouter } from './routes/workspaces.js';
+import { createEmailAvailabilityRouter } from './routes/auth.js';
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -39,6 +40,7 @@ app.get('/ready',async (_req,res) => {
   try { await db.raw('select 1'); return res.status(200).json({status:'ready',database:'connected'}); }
   catch { return res.status(503).json({status:'not_ready',database:'unavailable'}); }
 });
+app.use('/auth',requireDatabase,createEmailAvailabilityRouter({db}));
 app.use('/workspaces',requireDatabase,createWorkspaceRouter({db,env:process.env,authenticate}));
 app.use((_req,res) => res.status(501).json({
   error:{code:'NOT_IMPLEMENTED',message:'This endpoint has not been migrated yet.'}
