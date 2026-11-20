@@ -5,7 +5,7 @@ const unauthorized = (res, message = 'Authentication is required.') =>
 
 export function createAuthenticate({ db, env = process.env }) {
   return async function authenticate(req, res, next) {
-    const match = /^Bearer\\s+([^\\s]+)$/i.exec(req.headers.authorization || '');
+    const match = /^Bearer\s+([^\s]+)$/i.exec(req.headers.authorization || '');
     if (!match) return unauthorized(res);
     const secret = env.AUTH_JWT_SECRET;
     if (!secret || Buffer.byteLength(secret) < 32) {
