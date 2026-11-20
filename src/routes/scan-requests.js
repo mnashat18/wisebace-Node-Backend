@@ -49,6 +49,7 @@ async function loadRows(trx,workspaceId,filters={}){
  'actor.id as actor_id','actor.email as actor_email','actor.first_name as actor_first_name','actor.last_name as actor_last_name')
  .where('r.business_profile',workspaceId).modify(q=>{
   if(filters.departmentId)q.andWhere('r.department',filters.departmentId);
+  if(filters.memberId)q.andWhere('r.target_member',filters.memberId);
   if(filters.userId)q.andWhere(inner=>inner.where('r.requested_by_user',filters.userId).orWhere('m.user',filters.userId));
  }).orderBy('r.requested_at','desc').orderBy('r.id','desc');
  return rows.map(row=>{
@@ -147,10 +148,9 @@ export function createScanRequestsRouter({db,authenticate}){
     if(!['owner','hr','manager','employee'].includes(role)){const e=new Error('A verified workspace role is required.');e.code='FORBIDDEN';throw e;}
     const filters={};
     if(role==='manager'){if(!active.department_id){const e=new Error('Manager account has no active department.');e.code='CONFLICT';throw e;}filters.departmentId=active.department_id;}
-    else if(role==='employee')filters.userId=userId;
+    else if(role==='employee'){filters.userId=userId;filters.memberId=String(active.id);}
     const rows=await loadRows(trx,active.workspace_id,filters);
-    const scoped=role==='employee'?rows.filter(row=>row.target_member.id===String(active.id)):rows;
-    return {rows:scoped,summary:summary(scoped)};
+    return {rows,summary:summary(rows)};
    });
    return res.status(200).json({data});
   }catch(error){
