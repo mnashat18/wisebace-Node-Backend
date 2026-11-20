@@ -4,9 +4,9 @@ Standalone Node.js migration target for the existing WisePace Directus endpoint 
 
 ## Current state
 
-This is the initial migration scaffold. It includes a hardened Express server, PostgreSQL connectivity, health/readiness checks, and a route inventory based on the compiled Directus artifact supplied for this task.
+This migration includes a hardened Express server, PostgreSQL connectivity, health/readiness checks, JWT identity middleware, and the first migrated business endpoint: `POST /workspaces/create`.
 
-**This is not a completed Directus replacement.** Business routes are intentionally not faked; requests to routes not yet migrated return `501`. The current production Directus extension must remain in service until parity is complete.
+**This is not a completed Directus replacement.** Routes not yet migrated return `501`. Workspace creation is implemented but still requires live PostgreSQL integration tests and connection to the existing identity provider before production use. The current production Directus extension must remain in service until parity is complete.
 
 ## Requirements
 
@@ -24,7 +24,7 @@ npm run dev
 - `GET /health`: process health
 - `GET /ready`: PostgreSQL readiness (requires `DATABASE_URL`)
 
-## Migration principles
+## Authentication configuration\n\nThe current API accepts HS256 bearer tokens configured with `AUTH_JWT_SECRET`, optional issuer/audience checks, and a UUID `sub` claim that resolves to an active row in `directus_users`. This is a new standalone token contract, not a drop-in compatibility claim for Directus cookies or tokens. Do not switch the frontend until its authentication flow is explicitly integrated and tested.\n\nConfigure the four `WELLAR_*_ROLE_ID` variables with distinct existing Directus role UUIDs.\n\n## Migration principles
 
 1. Preserve externally observable API behavior, not Directus internals.
 2. Reimplement authentication explicitly; never trust client-supplied user/workspace IDs.
