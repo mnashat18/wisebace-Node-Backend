@@ -9,7 +9,7 @@ Source: the compiled Directus endpoint artifact uploaded in this conversation. T
 | GET | `/files/:fileId` | Pending |
 | POST | `/account-deletion-requests` | Pending |
 | GET | `/organization` | Pending |
-| PATCH | `/organization/profile` | Pending |
+| PATCH | `/organization/profile` | Implemented; schema integration verification pending |
 | POST | `/organization/departments` | Pending |
 | PATCH | `/organization/departments/:departmentId` | Pending |
 | POST | `/organization/departments/:departmentId/deactivate` | Pending |
@@ -52,6 +52,6 @@ Source: the compiled Directus endpoint artifact uploaded in this conversation. T
 
 `POST /workspaces/create` has been ported to Express with JWT identity verification, UUID role-map validation against `directus_roles`, a PostgreSQL advisory transaction lock, workspace + owner-membership creation, active workspace selection, and a non-blocking audit insert. It reuses the original compiled artifact's validation and response-payload helpers. Unit tests cover the reused source rules.
 
-**Migration count: 8 of 20 routes have at least a partial implementation; 12 routes remain pending.**
+### Organization profile update\n\n`PATCH /organization/profile` now enforces owner-only access to the authenticated user's active workspace, validates an allowlist of editable fields, normalizes website and team size, updates the profile and writes an activity event transactionally. The route returns the mapped organization profile shape. Database schema, authorization edge cases, and response parity still require integration tests.\n\n**Migration count: 9 of 20 routes have at least a partial implementation; 11 routes remain pending.**
 
 **Not yet production-ready:** no live PostgreSQL integration test has been run; the new JWT issuer/secret contract has not been connected to the existing frontend or identity provider; the Directus schema and role UUID environment values still need verification. Do not point production traffic at this service yet.
