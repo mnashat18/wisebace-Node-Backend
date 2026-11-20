@@ -18,11 +18,11 @@ Source: the compiled Directus endpoint artifact uploaded in this conversation. T
 | POST | `/alerts/:alertId/workflow` | Pending |
 | GET | `/workforce` | Pending |
 | POST | `/workspaces/invites` | Pending |
-| GET | `/workspaces/context` | Pending |
+| GET | `/workspaces/context` | Implemented; integration verification pending |
 | GET | `/workspaces/invites/:inviteId` | Pending |
 | POST | `/workspaces/invites/:inviteId/accept` | Pending |
 | POST | `/workspaces/invites/:inviteId/decline` | Pending |
-| POST | `/workspaces/switch` | Pending |
+| POST | `/workspaces/switch` | Implemented; integration verification pending |
 | POST | `/workspaces/create` | Implemented; integration verification pending |
 
 ## Parity gates
@@ -37,6 +37,10 @@ Source: the compiled Directus endpoint artifact uploaded in this conversation. T
 ## Implemented migration slices
 
 `POST /auth/email-availability` has been ported with strict JSON input validation, email normalization, a per-IP 10-requests/minute in-memory rate limit, a no-store response, and a 250ms minimum response time. Unit tests cover its normalization rules.
+
+### Workspace context and switching
+
+`GET /workspaces/context` now resolves the user's eligible active memberships, selects the active workspace using the original role/date preference rules, and includes unexpired pending invitations for Owner/HR. `POST /workspaces/switch` validates that the requested membership belongs to the authenticated user, that the workspace and department remain active, and then updates the user's active workspace and Directus role. Both are transaction-locked. Live PostgreSQL and cross-tenant integration tests are still required.
 
 ### Workspace creation
 
