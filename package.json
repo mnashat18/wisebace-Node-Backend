@@ -1,15 +1,17 @@
 {
   "name": "wisepace-node-backend",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Standalone Node.js backend migration of the WisePace Directus endpoint extension.",
+  "description": "Standalone Node.js migration target for the WisePace Directus endpoint extension.",
   "type": "module",
-  "engines": { "node": ">=22.0.0" },
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "test": "node --test",
-    "check": "node --check src/server.js"
+    "check": "node --check src/server.js && node --check src/routes/workspaces.js && node --check src/middleware/authenticate.js"
   },
   "dependencies": {
     "compression": "^1.8.1",
@@ -17,6 +19,7 @@
     "dotenv": "^16.6.1",
     "express": "^5.1.0",
     "helmet": "^8.1.0",
+    "jose": "^6.1.0",
     "knex": "^3.1.0",
     "pg": "^8.16.3"
   }
