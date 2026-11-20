@@ -1,3 +1,4 @@
+import {loadScanRequestRows,summarizeScanRequests} from './scan-requests.js';
 import express from 'express';
 
 const fail=(res,status,code,message)=>res.status(status).json({error:{code,message}});
@@ -68,7 +69,7 @@ export function createWorkforceRouter({db,authenticate}){
     const role=roleName(active.member_role);
     if(!['owner','hr','manager'].includes(role)){const e=new Error('Owner, HR, or manager access is required.');e.code='FORBIDDEN';throw e;}
     const canViewEmail=role==='owner'||role==='hr';
-    const [memberRows,inviteRows,departments,scanRequests]=await Promise.all([
+    const [memberRows,inviteRows,departments,scanRows]=await Promise.all([
      trx('business_profile_members as m').leftJoin('departments as d','d.id','m.department')
       .leftJoin('directus_users as u','u.id','m.user')
       .select('m.id','m.status','m.member_role','m.user as user_id','m.business_profile','m.department as department_id',
@@ -80,7 +81,7 @@ export function createWorkforceRouter({db,authenticate}){
        'i.expires_at','d.name as department_name').where('i.business_profile',active.workspace_id)
       .whereIn('i.status',['pending','sent']).orderBy('i.id','desc'):Promise.resolve([]),
      trx('departments').select('id','name','is_active').where({business_profile:active.workspace_id}).orderBy('name','asc'),
-     scanSummary(trx,active.workspace_id,role==='manager'?{departmentId:active.department_id}: {})
+     loadScanRequestRows(trx,active.workspace_id,role==='manager'?{departmentId:active.department_id}: {})
     ]);
     let rows=memberRows.map(row=>memberRow(row,canViewEmail));
     const invitations=inviteRows.map(row=>inviteRow(row,canViewEmail));
@@ -92,23 +93,28 @@ export function createWorkforceRouter({db,authenticate}){
     const pendingInvitations=rows.filter(row=>row.category==='PENDING_INVITATION').length;
     const inactiveMembers=rows.filter(row=>row.category==='INACTIVE_MEMBER').length;
     const needsAttention=rows.filter(row=>row.category==='NEEDS_ATTENTION').length;
+    const scanRequestsSummary=summarizeScanRequests(scanRows);
+    const today=new Date().toISOString().slice(0,10);
+    const completedMemberIds=new Set(scanRows.filter(row=>String(row.status??'').toLowerCase()==='completed'&&String(row.completed_at??'').slice(0,10)===today).map(row=>row.target_member?.id).filter(Boolean));
+    const eligibleIds=new Set(eligible.map(row=>row.member_id));
+    const completedToday=[...completedMemberIds].filter(id=>eligibleIds.has(id)).length;
     const summary={activeMembers,pendingInvitations,inactiveMembers,needsAttention,eligibleMembers:eligible.length,
-     completedToday:0,participationRate:0,totalRecords:rows.length,departments:departments.filter(d=>d.is_active===true).length,
-     scanRequested:scanRequests.pending+scanRequests.overdue,missingScans:eligible.length,
+     completedToday,participationRate:eligible.length?Math.round(completedToday/eligible.length*100):0,totalRecords:rows.length,departments:departments.filter(d=>d.is_active===true).length,
+     scanRequested:scanRequestsSummary.pending+scanRequestsSummary.overdue,missingScans:Math.max(eligible.length-completedToday,0),
      ownerCount:rows.filter(row=>row.member_role==='owner'&&row.category==='ACTIVE_MEMBER').length,
      hrCount:rows.filter(row=>row.member_role==='hr'&&row.category==='ACTIVE_MEMBER').length,
      managerCount:rows.filter(row=>row.member_role==='manager'&&row.category==='ACTIVE_MEMBER').length,
      employeeCount:rows.filter(row=>row.member_role==='employee'&&row.category==='ACTIVE_MEMBER').length,
      total:rows.length,verified_members:activeMembers,pending_invitations:pendingInvitations,
      repair_required:needsAttention,inactive:inactiveMembers,eligible_scan_targets:eligible.length,
-     open_scan_requests:scanRequests.pending+scanRequests.overdue,completed_scan_requests:scanRequests.completed,
-     overdue_scan_requests:scanRequests.overdue};
+     open_scan_requests:scanRequestsSummary.pending+scanRequestsSummary.overdue,completed_scan_requests:scanRequestsSummary.completed,
+     overdue_scan_requests:scanRequestsSummary.overdue};
     return {workspace:{id:String(active.workspace_id),companyName:active.company_name??'Organization',
       isActive:true,planCode:active.plan_code??null,billingStatus:active.billing_status??null},
      permissions:{canEditProfile:role==='owner',canManageDepartments:canViewEmail,
       canViewMembers:canViewEmail,canViewInvites:canViewEmail,canUseComingSoonControls:false},
      departments:departments.map(d=>({id:String(d.id),name:d.name??'Department',is_active:d.is_active===true})),
-     rows,eligible_scan_targets:eligible,scan_requests:{rows:[],summary:scanRequests},summary,
+     rows,eligible_scan_targets:eligible,scan_requests:{rows:scanRows,summary:scanRequestsSummary},summary,
      active:{workspace:{id:String(active.workspace_id),companyName:active.company_name??'Organization',isActive:true,
        planCode:active.plan_code??null,billingStatus:active.billing_status??null},
       membership:{id:String(active.id),status:active.status??'active',memberRole:role},
