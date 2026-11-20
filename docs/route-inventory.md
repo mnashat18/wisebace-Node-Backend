@@ -23,7 +23,7 @@ Source: the compiled Directus endpoint artifact uploaded in this conversation. T
 | POST | `/workspaces/invites/:inviteId/accept` | Pending |
 | POST | `/workspaces/invites/:inviteId/decline` | Pending |
 | POST | `/workspaces/switch` | Pending |
-| POST | `/workspaces/create` | Pending |
+| POST | `/workspaces/create` | Implemented; integration verification pending |
 
 ## Parity gates
 
@@ -34,4 +34,4 @@ Source: the compiled Directus endpoint artifact uploaded in this conversation. T
 - Audit events, email, push webhooks and file storage retain explicit failure semantics.
 - Positive, negative, cross-tenant and concurrency tests pass before a route is marked migrated.
 
-Do not point the production frontend at this service yet. Business routes remain deliberately unimplemented until their behavior is ported and verified.
+## Implemented migration slice: workspace creation\n\n`POST /workspaces/create` has been ported to Express with JWT identity verification, UUID role-map validation against `directus_roles`, a PostgreSQL advisory transaction lock, workspace + owner-membership creation, active workspace selection, and a non-blocking audit insert. It reuses the original compiled artifact's validation and response-payload helpers. Unit tests cover the reused source rules.\n\n**Not yet production-ready:** no live PostgreSQL integration test has been run; the new JWT issuer/secret contract has not been connected to the existing frontend or identity provider; the Directus schema and role UUID environment values still need verification. Do not point production traffic at this service yet.
