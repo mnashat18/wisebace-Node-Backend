@@ -1,8 +1,6 @@
 import express from 'express';
 
-const router = express.Router();
 const attemptsByIp = new Map();
-const blockedUntilByIp = new Map();
 const WINDOW_MS = 60_000;
 const MAX_REQUESTS = 10;
 const MIN_RESPONSE_MS = 250;
@@ -21,8 +19,6 @@ function clientIp(req) {
 }
 
 function consumeRateLimit(ip, now = Date.now()) {
-  const blockedUntil = blockedUntilByIp.get(ip) || 0;
-  if (blockedUntil > now) return { allowed: false, retryAfter: Math.max(1, Math.ceil((blockedUntil - now) / 1000)) };
   const recent = (attemptsByIp.get(ip) || []).filter(timestamp => timestamp > now - WINDOW_MS);
   if (recent.length >= MAX_REQUESTS) {
     const retryAfter = Math.max(1, Math.ceil((recent[0] + WINDOW_MS - now) / 1000));
@@ -41,6 +37,7 @@ function consumeRateLimit(ip, now = Date.now()) {
 }
 
 export function createEmailAvailabilityRouter({ db }) {
+  const router = express.Router();
   router.post('/email-availability', async (req, res) => {
     res.set('Cache-Control', 'no-store');
     const ip = clientIp(req);
