@@ -59,11 +59,16 @@ export function createOrganizationRouter({db,authenticate}) {
       const profile = await db.transaction(async trx => {
         await trx.raw('select pg_advisory_xact_lock(hashtext(?))',
           [`wellar-organization-profile:user:${userId}`]);
+        const user = await trx('directus_users').select('active_business_profile').where({id:userId}).first();
+        if (!user?.active_business_profile) {
+          const error = new Error('A verified active organization membership is required.');
+          error.code = 'NOT_FOUND'; throw error;
+        }
         const membership = await trx('business_profile_members as member')
           .innerJoin('business_profiles as profile','profile.id','member.business_profile')
           .select('member.business_profile as workspace_id','member.member_role','member.status',
-            'profile.is_active').where('member.user',userId).andWhere('member.status','active')
-          .andWhere('profile.is_active',true).first();
+            'profile.is_active').where('member.user',userId).andWhere('member.business_profile',user.active_business_profile)
+          .andWhere('member.status','active').andWhere('profile.is_active',true).first();
         if (!membership) {
           const error = new Error('A verified active organization membership is required.');
           error.code = 'NOT_FOUND'; throw error;
