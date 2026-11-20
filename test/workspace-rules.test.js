@@ -34,7 +34,7 @@ test('protected file delivery only permits allowed media types', () => {
   assert.equal(resolveProtectedFileDelivery(['avatar'],'text/html').allowed,false);
 });
 
-import { normalizeEmail } from '../src/routes/auth.js';
+import { normalizeEmail } from '../src/lib/email.js';
 
 test('email availability normalization trims and lowercases valid email', () => {
   assert.equal(normalizeEmail('  USER@Example.com '),'user@example.com');
