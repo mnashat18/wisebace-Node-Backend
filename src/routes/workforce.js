@@ -105,8 +105,8 @@ export function createWorkforceRouter({db,authenticate}){
      overdue_scan_requests:scanRequests.overdue};
     return {workspace:{id:String(active.workspace_id),companyName:active.company_name??'Organization',
       isActive:true,planCode:active.plan_code??null,billingStatus:active.billing_status??null},
-     permissions:{canManageMembers:canViewEmail,canInviteMembers:canViewEmail,canManageDepartments:canViewEmail,
-      canViewMemberEmails:canViewEmail,canCreateScanRequests:canViewEmail},
+     permissions:{canEditProfile:role==='owner',canManageDepartments:canViewEmail,
+      canViewMembers:canViewEmail,canViewInvites:canViewEmail,canUseComingSoonControls:false},
      departments:departments.map(d=>({id:String(d.id),name:d.name??'Department',is_active:d.is_active===true})),
      rows,eligible_scan_targets:eligible,scan_requests:{rows:[],summary:scanRequests},summary,
      active:{workspace:{id:String(active.workspace_id),companyName:active.company_name??'Organization',isActive:true,
