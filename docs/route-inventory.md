@@ -27,7 +27,7 @@ Source: the compiled Directus endpoint artifact uploaded in this conversation. T
 
 ## Parity gates
 
-- Authentication/session identity matches the current Directus accountability contract.
+- Authentication/session identity matches the current Directus accountability contract. The standalone HS256 middleware currently requires `iat` and `exp` (maximum 24-hour lifetime) and an active `directus_users` row, but it is not yet bridged to Directus cookie/session auth.
 - Authorization and workspace/tenant isolation are enforced server-side.
 - Input allowlists, validation, status codes and response envelopes match the current API.
 - Multi-row mutations preserve PostgreSQL transactions, advisory locks, uniqueness/idempotency and rollback behavior.
@@ -84,4 +84,4 @@ Source: the compiled Directus endpoint artifact uploaded in this conversation. T
 
 **Migration count: 20 of 20 routes have at least a partial implementation.**
 
-**Not yet production-ready:** no live PostgreSQL integration test has been run; the new JWT issuer/secret contract has not been connected to the existing frontend or identity provider; the Directus schema and role UUID environment values still need verification. Do not point production traffic at this service yet.
+**Not yet production-ready:** no live PostgreSQL integration test has been run; the new JWT issuer/secret contract (including mandatory `iat`/`exp`, maximum 24-hour lifetime) has not been connected to the existing frontend or identity provider; the Directus schema and role UUID environment values still need verification. Do not point production traffic at this service yet.
