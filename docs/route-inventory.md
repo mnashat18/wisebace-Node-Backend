@@ -27,7 +27,7 @@ Source: the compiled Directus endpoint artifact uploaded in this conversation. T
 
 ## Parity gates
 
-- Authentication/session identity matches the current Directus accountability contract. The standalone HS256 middleware currently requires `iat` and `exp` (maximum 24-hour lifetime) and an active `directus_users` row, but it is not yet bridged to Directus cookie/session auth.
+- Authentication/session identity matches the current Directus accountability contract. Optional `AUTH_MODE=directus` now validates bearer access tokens through Directus `GET /users/me` and checks the active local user row. This does not implement Directus browser-cookie sessions or refresh-token renewal. Standalone HS256 mode remains available for a separately managed issuer.
 - Authorization and workspace/tenant isolation are enforced server-side.
 - Input allowlists, validation, status codes and response envelopes match the current API.
 - Multi-row mutations preserve PostgreSQL transactions, advisory locks, uniqueness/idempotency and rollback behavior.
@@ -84,4 +84,4 @@ Source: the compiled Directus endpoint artifact uploaded in this conversation. T
 
 **Migration count: 20 of 20 routes have at least a partial implementation.**
 
-**Not yet production-ready:** no live PostgreSQL integration test has been run; the new JWT issuer/secret contract (including mandatory `iat`/`exp`, maximum 24-hour lifetime) has not been connected to the existing frontend or identity provider; the Directus schema and role UUID environment values still need verification. Do not point production traffic at this service yet.
+**Not yet production-ready:** no live PostgreSQL integration test has been run; the Directus bearer-token mode has not been exercised against the real identity provider or frontend; browser-cookie sessions and refresh-token renewal are not ported; the Directus schema and role UUID environment values still need verification. Do not point production traffic at this service yet.
