@@ -6,7 +6,7 @@ Standalone Node.js migration target for the existing WisePace Directus endpoint 
 
 This migration currently contains implementations (some intentionally partial) for all 20 routes identified in the compiled Directus extension, plus an Express server, PostgreSQL connectivity, health/readiness checks, JWT identity middleware, and unit tests. Route presence is not proof of full Directus parity; see the route inventory for outstanding integration gates.
 
-**This is not a completed Directus replacement.** Routes not yet migrated return `501`. Workspace creation is implemented but still requires live PostgreSQL integration tests and connection to the existing identity provider before production use. The current production Directus extension must remain in service until parity is complete.
+**This is not yet a production-ready Directus replacement.** All 20 inventoried routes have at least partial implementations, but several still have deliberate gaps and none has completed live schema/tenant/concurrency parity verification. The current production Directus extension must remain in service until those gates pass.
 
 ## Requirements
 
@@ -33,6 +33,11 @@ npm run dev
 - `POST /workspaces/invites/:inviteId/accept`: accept an invitation and create membership
 - `POST /workspaces/invites/:inviteId/decline`: decline an invitation
 - `POST /workspaces/create`: create a workspace and owner membership (requires a valid API bearer token and role UUID configuration)
+- `GET /workforce`: retrieve the role-scoped workforce roster and scan-request summary
+- `POST /scan-requests`, `GET /scan-requests`: create and list workspace-scoped scan requests
+- `POST /alerts/:alertId/workflow`: apply supported alert lifecycle transitions
+- `POST /avatar`, `GET /files/:fileId`: upload avatar and deliver authorized private avatar files
+- `POST /account-deletion-requests`: submit an account deletion request (staff notification only; does not delete the account)
 
 ## Authentication configuration
 
@@ -49,4 +54,4 @@ Configure the four `WELLAR_*_ROLE_ID` variables with distinct existing Directus 
 5. Test authorization, cross-tenant access, concurrency and external side effects.
 6. Mark routes complete only after parity tests pass.
 
-See [the route inventory](docs/route-inventory.md).
+See [the route inventory](docs/route-inventory.md) and [PostgreSQL integration checks](docs/integration-testing.md). Set `TRUST_PROXY` to the exact trusted proxy hop count when running behind a reverse proxy; do not trust arbitrary forwarded headers.
