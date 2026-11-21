@@ -17,9 +17,9 @@ function parse(body){
  return {email,reason};
 }
 function clientIp(req){
- const forwarded=req.headers['x-forwarded-for'];
- const first=Array.isArray(forwarded)?forwarded[0]:forwarded;
- return (typeof first==='string'?first.split(',')[0].trim():'')||req.ip||req.socket?.remoteAddress||'unknown';
+ // Express req.ip is derived from the socket unless TRUST_PROXY is explicitly
+ // configured. Never trust a client-supplied X-Forwarded-For header directly.
+ return (typeof req.ip==='string'&&req.ip.trim())||req.socket?.remoteAddress||'unknown';
 }
 function cleanup(now){
  for(const [key,until] of recentByEmail)if(until<=now)recentByEmail.delete(key);
