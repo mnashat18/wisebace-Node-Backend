@@ -18,6 +18,13 @@ const app = express();
 const port = Number(process.env.PORT || 3000);
 const origins = (process.env.CORS_ORIGINS || '').split(',').map(v => v.trim()).filter(Boolean);
 app.disable('x-powered-by');
+// Trust only an explicitly configured number of reverse-proxy hops.
+// Do not use `true`/`1` blindly; restrict direct access to the app server.
+const proxyHops = process.env.TRUST_PROXY;
+if (proxyHops !== undefined && proxyHops !== '') {
+  if (!/^\\d+$/.test(proxyHops)) throw new Error('TRUST_PROXY must be a non-negative integer hop count.');
+  app.set('trust proxy', Number(proxyHops));
+}
 app.use(helmet());
 app.use(compression());
 app.use(cors({
