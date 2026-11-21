@@ -36,7 +36,7 @@ npm run dev
 
 ## Authentication configuration
 
-The current API accepts HS256 bearer tokens configured with `AUTH_JWT_SECRET`, optional issuer/audience checks, a UUID `sub` claim, and mandatory `iat`/`exp` claims with a maximum 24-hour lifetime. The subject must resolve to an active row in `directus_users`. Database lookup failures are passed to the server error handler rather than misreported as invalid credentials. This is a new standalone token contract, not a drop-in compatibility claim for Directus cookies or tokens. Do not switch the frontend until its authentication flow is explicitly integrated and tested.
+Set `AUTH_MODE=directus` to validate each bearer access token against the configured Directus instance using `GET /users/me`, then confirm that identity is still active in the local `directus_users` table. This supports Directus bearer access tokens; it does not automatically support browser session cookies, refresh-token renewal, or frontend CORS/cookie deployment. The default `AUTH_MODE=standalone` accepts only HS256 tokens with `AUTH_JWT_SECRET`, optional issuer/audience checks, UUID `sub`, mandatory `iat`/`exp`, and a maximum 24-hour lifetime. Database failures are surfaced as server errors. Never switch production traffic until the frontend token lifecycle and cross-origin deployment have been integration-tested.
 
 Configure the four `WELLAR_*_ROLE_ID` variables with distinct existing Directus role UUIDs.
 
