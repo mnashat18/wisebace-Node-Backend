@@ -4,7 +4,7 @@ Standalone Node.js migration target for the existing WisePace Directus endpoint 
 
 ## Current state
 
-This migration includes a hardened Express server, PostgreSQL connectivity, health/readiness checks, JWT identity middleware, and nine migrated endpoints covering email availability, organization profile updates, workspace context/switch/create, and in-app invitation creation/detail/accept/decline.
+This migration currently contains implementations (some intentionally partial) for all 20 routes identified in the compiled Directus extension, plus an Express server, PostgreSQL connectivity, health/readiness checks, JWT identity middleware, and unit tests. Route presence is not proof of full Directus parity; see the route inventory for outstanding integration gates.
 
 **This is not a completed Directus replacement.** Routes not yet migrated return `501`. Workspace creation is implemented but still requires live PostgreSQL integration tests and connection to the existing identity provider before production use. The current production Directus extension must remain in service until parity is complete.
 
@@ -36,7 +36,7 @@ npm run dev
 
 ## Authentication configuration
 
-The current API accepts HS256 bearer tokens configured with `AUTH_JWT_SECRET`, optional issuer/audience checks, and a UUID `sub` claim that resolves to an active row in `directus_users`. This is a new standalone token contract, not a drop-in compatibility claim for Directus cookies or tokens. Do not switch the frontend until its authentication flow is explicitly integrated and tested.
+The current API accepts HS256 bearer tokens configured with `AUTH_JWT_SECRET`, optional issuer/audience checks, a UUID `sub` claim, and mandatory `iat`/`exp` claims with a maximum 24-hour lifetime. The subject must resolve to an active row in `directus_users`. Database lookup failures are passed to the server error handler rather than misreported as invalid credentials. This is a new standalone token contract, not a drop-in compatibility claim for Directus cookies or tokens. Do not switch the frontend until its authentication flow is explicitly integrated and tested.
 
 Configure the four `WELLAR_*_ROLE_ID` variables with distinct existing Directus role UUIDs.
 
