@@ -120,3 +120,53 @@ test('authentication forwards database failures instead of disguising them as 40
  assert.equal(forwarded,databaseError);
  assert.equal(res.statusCode,200);
 });
+
+
+test('Directus auth mode validates the bearer token against Directus /users/me',async()=>{
+ const token='opaque-directus-access-token';
+ let requested;
+ const fetchImpl=async(url,options)=>{
+  requested={url,authorization:options.headers.Authorization};
+  return {ok:true,status:200,json:async()=>({data:{id:authUserId,email:'directus@example.com',status:'active'}})};
+ };
+ const res=responseRecorder(),req={headers:{authorization:'Bearer '+token}};
+ let nextCalled=false;
+ await createAuthenticate({db:fakeDb({id:authUserId,email:'local@example.com',status:'active'}),
+  env:{AUTH_MODE:'directus',DIRECTUS_URL:'https://directus.example'},fetchImpl})(req,res,()=>{nextCalled=true;});
+ assert.equal(nextCalled,true);
+ assert.equal(requested.url,'https://directus.example/users/me?fields=id,email,status');
+ assert.equal(requested.authorization,'Bearer '+token);
+ assert.equal(req.auth.userId,authUserId);
+ assert.equal(req.auth.email,'local@example.com');
+ assert.equal(req.auth.provider,'directus');
+});
+
+test('Directus auth mode rejects tokens rejected by the identity provider',async()=>{
+ const res=responseRecorder();
+ await createAuthenticate({db:fakeDb({id:authUserId,status:'active'}),
+  env:{AUTH_MODE:'directus',DIRECTUS_URL:'https://directus.example'},
+  fetchImpl:async()=>({ok:false,status:401})})(
+   {headers:{authorization:'Bearer invalid-token'}},res,()=>{}
+  );
+ assert.equal(res.statusCode,401);
+});
+
+test('Directus auth mode returns 503 when the identity provider is unavailable',async()=>{
+ const res=responseRecorder();
+ await createAuthenticate({db:fakeDb({id:authUserId,status:'active'}),
+  env:{AUTH_MODE:'directus',DIRECTUS_URL:'https://directus.example'},
+  fetchImpl:async()=>({ok:false,status:502})})(
+   {headers:{authorization:'Bearer token'}},res,()=>{}
+  );
+ assert.equal(res.statusCode,503);
+});
+
+test('Directus auth mode refuses to trust a user absent from the local active-user table',async()=>{
+ const res=responseRecorder();
+ await createAuthenticate({db:fakeDb(null),
+  env:{AUTH_MODE:'directus',DIRECTUS_URL:'https://directus.example'},
+  fetchImpl:async()=>({ok:true,status:200,json:async()=>({data:{id:authUserId,email:'x@example.com'}})})})(
+   {headers:{authorization:'Bearer valid-token'}},res,()=>{}
+  );
+ assert.equal(res.statusCode,401);
+});
