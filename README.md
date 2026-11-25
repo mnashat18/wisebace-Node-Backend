@@ -1,6 +1,6 @@
-# WisePace Node.js Backend
+# Wisebase Node.js Backend
 
-Standalone Node.js migration target for the existing WisePace Directus endpoint extension.
+Standalone Node.js migration target for the existing Wisebase Directus endpoint extension.
 
 ## Current state
 
